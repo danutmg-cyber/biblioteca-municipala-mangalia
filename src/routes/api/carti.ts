@@ -1,4 +1,4 @@
-import { createServerFileRoute } from '@tanstack/react-start/server'
+import { createFileRoute } from '@tanstack/react-router'
 
 type RawBookRow = {
   autor: string
@@ -67,19 +67,12 @@ function parseCsv(csv: string): RawBookRow[] {
 
   const idxAutor = headers.findIndex((h) => h === 'autor')
   const idxTitlu = headers.findIndex((h) => h === 'titlu')
-  const idxLoc = headers.findIndex(
-    (h) => h === 'loc aparitie' || h === 'locaparitie'
-  )
-  const idxAn = headers.findIndex(
-    (h) => h === 'anul aparitiei' || h === 'anulaparitiei'
-  )
-  const idxDisponibil = headers.findIndex(
-    (h) => h === 'disponibil' || h === 'disponibila'
-  )
+  const idxLoc = headers.findIndex((h) => h === 'loc aparitie' || h === 'locaparitie')
+  const idxAn = headers.findIndex((h) => h === 'anul aparitiei' || h === 'anulaparitiei')
+  const idxDisponibil = headers.findIndex((h) => h === 'disponibil' || h === 'disponibila')
 
   return lines.slice(1).map((line) => {
     const cols = parseCsvLine(line)
-
     return {
       autor: cols[idxAutor] || '',
       titlu: cols[idxTitlu] || '',
@@ -119,68 +112,72 @@ function isAvailable(value: string) {
   return v === 'da' || v === 'disponibil' || v === 'yes'
 }
 
-export const ServerRoute = createServerFileRoute('/api/carti').methods({
-  GET: async ({ request }) => {
-    const url = new URL(request.url)
-    const q = url.searchParams.get('q') ?? ''
-    const mode = url.searchParams.get('mode') ?? 'toate'
+export const Route = createFileRoute('/api/carti')({
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        const url = new URL(request.url)
+        const q = url.searchParams.get('q') ?? ''
+        const mode = url.searchParams.get('mode') ?? 'toate'
 
-    const sheetId = '1kR_JmRBLqpxTMZEe5_B9JASp5UY0Cs5Uu2YVNd9XZiQ'
-    const gid = '0'
+        const sheetId = '1kR_JmRBLqpxTMZEe5_B9JASp5UY0Cs5Uu2YVNd9XZiQ'
+        const gid = '0'
 
-    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
-    const response = await fetch(csvUrl, { cache: 'no-store' })
+        const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
+        const response = await fetch(csvUrl, { cache: 'no-store' })
 
-    if (!response.ok) {
-      return Response.json(
-        { error: 'Nu am putut citi catalogul din Google Sheets.' },
-        { status: 500 }
-      )
-    }
-
-    const csv = await response.text()
-    const rows = parseCsv(csv).filter((row) => matchesBook(row, q, mode))
-
-    const grouped = new Map<string, GroupedBook>()
-
-    for (const row of rows) {
-      const key = buildKey(row)
-
-      if (!grouped.has(key)) {
-        grouped.set(key, {
-          autor: row.autor,
-          titlu: row.titlu,
-          locAparitie: row.locAparitie,
-          anulAparitiei: row.anulAparitiei,
-          totalExemplare: 0,
-          exemplareDisponibile: 0,
-          esteDisponibila: false,
-          mesaj: '',
-        })
-      }
-
-      const book = grouped.get(key)!
-      book.totalExemplare += 1
-
-      if (isAvailable(row.disponibil)) {
-        book.exemplareDisponibile += 1
-      }
-    }
-
-    const results = Array.from(grouped.values())
-      .map((book) => {
-        const esteDisponibila = book.exemplareDisponibile > 0
-
-        return {
-          ...book,
-          esteDisponibila,
-          mesaj: esteDisponibila
-            ? 'Poți împrumuta cartea în zilele de luni, marți, miercuri, joi și vineri între orele 09:00 - 17:00.'
-            : 'Cartea există în catalog, dar nu este disponibilă momentan pentru împrumut.',
+        if (!response.ok) {
+          return Response.json(
+            { error: 'Nu am putut citi catalogul din Google Sheets.' },
+            { status: 500 },
+          )
         }
-      })
-      .slice(0, 50)
 
-    return Response.json({ results })
+        const csv = await response.text()
+        const rows = parseCsv(csv).filter((row) => matchesBook(row, q, mode))
+
+        const grouped = new Map<string, GroupedBook>()
+
+        for (const row of rows) {
+          const key = buildKey(row)
+
+          if (!grouped.has(key)) {
+            grouped.set(key, {
+              autor: row.autor,
+              titlu: row.titlu,
+              locAparitie: row.locAparitie,
+              anulAparitiei: row.anulAparitiei,
+              totalExemplare: 0,
+              exemplareDisponibile: 0,
+              esteDisponibila: false,
+              mesaj: '',
+            })
+          }
+
+          const book = grouped.get(key)!
+          book.totalExemplare += 1
+
+          if (isAvailable(row.disponibil)) {
+            book.exemplareDisponibile += 1
+          }
+        }
+
+        const results = Array.from(grouped.values())
+          .map((book) => {
+            const esteDisponibila = book.exemplareDisponibile > 0
+
+            return {
+              ...book,
+              esteDisponibila,
+              mesaj: esteDisponibila
+                ? 'Poți împrumuta cartea în zilele de luni, marți, miercuri, joi și vineri între orele 09:00 - 17:00.'
+                : 'Cartea există în catalog, dar nu este disponibilă momentan pentru împrumut.',
+            }
+          })
+          .slice(0, 50)
+
+        return Response.json({ results })
+      },
+    },
   },
 })
