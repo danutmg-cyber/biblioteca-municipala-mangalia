@@ -1,0 +1,17 @@
+@import "tailwindcss" source("../");
+
+:root {
+  --color-library-navy: #1a3a5c;
+  --color-library-gold: #c9962a;
+  --color-library-gold-dark: #b8851f;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+code {
+  font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
